@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Smart Attendance - Hackathon Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .calendar-day {
+      width: 14.28%;
+      padding-top: 14.28%;
+      position: relative;
+      cursor: pointer;
+      border: 1px solid #e5e7eb;
+    }
+    .calendar-day-inner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .calendar-day-date {
+      font-weight: bold;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 4px;
+    }
+    .bg-green-500-dot { background-color: #34d399; }
+    .bg-yellow-500-dot { background-color: #f59e0b; }
+    .bg-red-500-dot { background-color: #ef4444; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800">
+
+  <div id="customAlert" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+  </div>
+
+  <nav class="bg-blue-700 text-white p-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 11c2.21 0 4-1.79 4-4S14.21 3 12 3 8 4.79 8 7s1.79 4 4 4zM5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+      <h1 class="font-bold text-lg">Smart Attendance System</h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <div id="currentUser" class="text-sm hidden"></div>
+      <button id="logoutBtn" class="hidden bg-red-500 px-3 py-1 rounded hover:bg-red-700">Logout</button>
+    </div>
+  </nav>
+
+  <main id="loginPage" class="flex items-center justify-center py-12">
+    <div class="bg-white p-8 shadow-lg rounded-lg w-full max-w-md">
+      <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
+
+      <form id="loginForm" class="space-y-3" novalidate>
+        <label class="block font-semibold">Role</label>
+        <select id="loginRole" class="w-full border rounded p-2" required>
+          <option value="">Select Role</option>
+          <option value="faculty">Faculty</option>
+          <option value="student">Student</option>
+          <option value="incharge">Class Incharge</option>
+          <option value="hod">HoD</option>
+          <option value="principal">Principal/Dean</option>
+        </select>
+
+        <label class="block font-semibold">Username</label>
+        <input id="username" type="text" class="w-full border rounded p-2" placeholder="Enter Username" required>
+
+        <label class="block font-semibold">Password</label>
+        <input id="password" type="password" class="w-full border rounded p-2" placeholder="Enter Password" required>
+
+        <div id="errorTxt" class="text-red-600 text-sm hidden"></div>
+
+        <button type="submit" id="loginBtn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-800">
+          Login
+        </button>
+      </form>
+
+      <hr class="my-4">
+
+      <div class="text-sm">
+        <p class="font-semibold mb-2">Demo credentials (any username, password = <code>1234</code>):</p>
+        <table class="w-full text-left text-sm">
+          <thead class="bg-gray-100">
+            <tr><th class="px-2 py-1">Role</th><th class="px-2 py-1">Example Username</th><th class="px-2 py-1">Password</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="px-2 py-1">Faculty</td><td class="px-2 py-1">1001</td><td class="px-2 py-1">1234</td></tr>
+            <tr><td class="px-2 py-1">Student</td><td class="px-2 py-1">23811A05D1</td><td class="px-2 py-1">1234</td></tr>
+            <tr><td class="px-2 py-1">Incharge</td><td class="px-2 py-1">incharge_a</td><td class="px-2 py-1">1234</td></tr>
+            <tr><td class="px-2 py-1">HoD</td><td class="px-2 py-1">hod_cs</td><td class="px-2 py-1">1234</td></tr>
+            <tr><td class="px-2 py-1">Principal</td><td class="px-2 py-1">principal</td><td class="px-2 py-1">1234</td></tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-gray-600 text-xs">This is a frontend demo: data is stored in your browser's localStorage.</p>
+      </div>
+    </div>
+  </main>
+
+  <section id="app" class="hidden max-w-6xl mx-auto p-6">
+    <div class="flex flex-col lg:flex-row gap-6">
+      <aside class="w-full lg:w-1/3 bg-white p-4 rounded shadow">
+        <h3 class="font-bold text-lg mb-2">Attendance Controls</h3>
+
+        <div class="mb-3">
+          <label class="block font-semibold mb-1">Select Department</label>
+          <select id="deptSelect" class="w-full border p-2 rounded"></select>
+        </div>
+
+        <div class="mb-3">
+          <label class="block font-semibold mb-1">Select Class / Subject</label>
+          <select id="classSelect" class="w-full border p-2 rounded"></select>
+        </div>
+
+        <div class="mb-3">
+          <label class="block font-semibold mb-1">Select Date</label>
+          <input id="datePicker" type="date" class="w-full border p-2 rounded">
+        </div>
+        
+        <div id="hodDeptControls" class="hidden mb-3">
+            <label class="block font-semibold mb-1">Select Department</label>
+            <select id="hodDeptSelect" class="w-full border p-2 rounded"></select>
+        </div>
+
+        <div id="facultyActions" class="space-y-2">
+          <button id="loadAttendanceBtn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-800">Load / Mark Attendance</button>
+          <div class="flex gap-2">
+            <button id="markAllPresentBtn" class="w-1/2 bg-green-500 text-white p-2 rounded hover:bg-green-700">Mark All Present</button>
+            <button id="markAllAbsentBtn" class="w-1/2 bg-red-500 text-white p-2 rounded hover:bg-red-700">Mark All Absent</button>
+          </div>
+          <button id="saveAttendanceBtn" class="w-full bg-green-600 text-white p-2 rounded hover:bg-green-800">Save Attendance</button>
+        </div>
+
+        <div id="othersActions" class="hidden space-y-2">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="showAllTimeData" class="form-checkbox h-4 w-4">
+            <label for="showAllTimeData" class="text-sm font-semibold">Show All Time Data</label>
+          </div>
+          <button id="viewConsolidatedBtn" class="w-full bg-indigo-600 text-white p-2 rounded hover:bg-indigo-800">View Consolidated Attendance</button>
+          <button id="generateDefaultersBtn" class="w-full bg-red-600 text-white p-2 rounded hover:bg-red-800">Generate Defaulters</button>
+        </div>
+
+        <div class="mt-4 text-sm">
+          <p><strong>Quick tips:</strong></p>
+          <ul class="list-disc ml-5">
+            <li>Faculty: choose class and date, toggle checkboxes, then Save.</li>
+            <li>Students: view your history and percentage on login.</li>
+            <li>Incharge/HOD/Principal: use Consolidated / Defaulters buttons.</li>
+          </ul>
+        </div>
+      </aside>
+
+      <main class="w-full lg:w-2/3 space-y-6">
+        <div id="attendancePanel" class="bg-white p-4 rounded shadow hidden">
+          <h3 class="font-bold mb-2">Mark Attendance — <span id="panelClassName"></span> — <span id="panelDate"></span></h3>
+          <div class="overflow-x-auto">
+            <table id="studentsTable" class="table-auto w-full text-left">
+              <thead><tr class="bg-gray-100"><th class="px-3 py-2">Roll</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Present</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="mt-3 text-sm text-gray-600">You can toggle and press Save Attendance.</div>
+        </div>
+
+        <div id="historyPanel" class="bg-white p-4 rounded shadow hidden">
+          <div class="flex justify-between items-start">
+            <h3 class="font-bold mb-2">Attendance History & Analytics</h3>
+            <div class="text-sm text-gray-600">Class average: <span id="classAvg">-</span></div>
+          </div>
+
+          <div id="historySummary" class="overflow-x-auto">
+            <h4 class="font-semibold mt-2"><span id="dateSummaryHeader">Per-Date Summary (Last 30 Days)</span></h4>
+            <table id="dateSummaryTable" class="table-auto w-full text-left">
+              <thead><tr class="bg-gray-100"><th class="px-3 py-2">Date</th><th class="px-3 py-2">Present</th><th class="px-3 py-2">Total</th><th class="px-3 py-2">% Present</th></tr></thead>
+              <tbody></tbody>
+            </table>
+
+            <h4 class="font-semibold mt-4"><span id="studentPctHeader">Per-Student Percentage (Last 30 Days)</span></h4>
+            <table id="studentPctTable" class="table-auto w-full text-left">
+              <thead><tr class="bg-gray-100"><th class="px-3 py-2">Roll</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Present Days</th><th class="px-3 py-2">Total Days</th><th class="px-3 py-2">%</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="studentPanel" class="bg-white p-4 rounded shadow hidden">
+          <h3 class="font-bold mb-2"><span id="studentPanelHeader">Your Attendance (Last 30 Days)</span></h3>
+          <div class="mb-2 text-sm">Roll: <span id="stuRoll"></span> — Name: <span id="stuName"></span></div>
+          <div class="mb-2">Overall Attendance %: <strong id="stuPct">-</strong></div>
+
+          <h4 class="font-semibold mt-4">Attendance by Day</h4>
+          <div class="p-2 border rounded-lg bg-gray-50">
+            <canvas id="attendanceChart"></canvas>
+          </div>
+
+          <button id="viewCalendarBtn" class="mt-4 w-full bg-indigo-600 text-white p-2 rounded hover:bg-indigo-800">View Calendar</button>
+
+          <h4 class="font-semibold mt-4">Detailed History</h4>
+          <div class="overflow-x-auto">
+            <table id="stuHistoryTable" class="table-auto w-full text-left">
+              <thead><tr class="bg-gray-100"><th class="px-3 py-2">Date</th><th class="px-3 py-2">Present</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div id="calendarPanel" class="bg-white p-4 rounded shadow hidden">
+          <h3 class="font-bold mb-2">Attendance Calendar</h3>
+          <div class="flex justify-between items-center mb-4">
+            <button id="prevMonthBtn" class="bg-gray-200 px-3 py-1 rounded">&lt; Prev</button>
+            <span id="currentMonth" class="font-semibold text-lg"></span>
+            <button id="nextMonthBtn" class="bg-gray-200 px-3 py-1 rounded">Next &gt;</button>
+          </div>
+          <div id="calendarGrid" class="grid grid-cols-7 text-center">
+            <div class="font-bold">Sun</div>
+            <div class="font-bold">Mon</div>
+            <div class="font-bold">Tue</div>
+            <div class="font-bold">Wed</div>
+            <div class="font-bold">Thu</div>
+            <div class="font-bold">Fri</div>
+            <div class="font-bold">Sat</div>
+          </div>
+          <div id="calendarDays" class="grid grid-cols-7 gap-1 mt-2"></div>
+          <button id="backToHistoryBtn" class="mt-4 bg-gray-500 text-white p-2 rounded hover:bg-gray-700">Back to History</button>
+        </div>
+
+        <div id="hodPanel" class="bg-white p-4 rounded shadow hidden">
+          <h3 class="font-bold mb-2">Overall Subject Attendance</h3>
+          <div class="overflow-x-auto mb-6">
+            <table id="hodTable" class="table-auto w-full text-left">
+              <thead>
+                <tr class="bg-gray-100">
+                  <th class="px-3 py-2">Subject (Class)</th>
+                  <th class="px-3 py-2">Overall %</th>
+                </tr>
+              </thead>
+              <tbody>
+              </tbody>
+            </table>
+          </div>
+          
+          <h3 class="font-bold mb-2">Student Attendance by Department</h3>
+          <div id="hodStudentPanel" class="overflow-x-auto">
+              <table id="hodStudentTable" class="table-auto w-full text-left">
+                  <thead>
+                      <tr class="bg-gray-100">
+                          <th class="px-3 py-2">Roll</th>
+                          <th class="px-3 py-2">Name</th>
+                          <th class="px-3 py-2">Present Days</th>
+                          <th class="px-3 py-2">Total Days</th>
+                          <th class="px-3 py-2">Overall %</th>
+                      </tr>
+                  </thead>
+                  <tbody></tbody>
+              </table>
+          </div>
+        </div>
+
+        <div id="principalPanel" class="bg-white p-4 rounded shadow hidden">
+          <h3 class="font-bold mb-2">Overall Section Attendance</h3>
+          <div class="overflow-x-auto">
+            <table id="principalTable" class="table-auto w-full text-left">
+              <thead>
+                <tr class="bg-gray-100">
+                  <th class="px-3 py-2">Section</th>
+                  <th class="px-3 py-2">Overall %</th>
+                </tr>
+              </thead>
+              <tbody>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="defaultersPanel" class="bg-white p-4 rounded shadow hidden">
+          <h3 class="font-bold mb-2"><span id="defaultersPanelHeader">Defaulters (Below threshold, last 30 days)</span></h3>
+          <div class="mb-2 flex gap-2 items-center">
+            <label class="text-sm">Threshold %</label>
+            <input id="defThreshold" type="number" value="75" class="border p-1 rounded w-20">
+            <button id="refreshDefBtn" class="bg-indigo-600 text-white px-3 py-1 rounded">Refresh</button>
+            <button id="exportCSVBtn" class="ml-auto bg-gray-600 text-white px-3 py-1 rounded">Export CSV</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table id="defTable" class="table-auto w-full text-left">
+              <thead><tr class="bg-gray-100"><th class="px-3 py-2">Roll</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">%</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </section>
+
+  <div id="dayModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center hidden z-50">
+    <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+      <h4 id="modalDate" class="font-bold text-lg mb-4"></h4>
+      <div id="modalDetails" class="space-y-2"></div>
+      <button id="closeModalBtn" class="mt-4 w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-800">Close</button>
+    </div>
+  </div>
+
+  <script>
+    /*********
+      * Demo data & storage
+      *********/
+    const demoStudents = [
+      { roll: '23811A05D1', name: 'Bhavya', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D2', name: 'Harsha', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D3', name: 'Teja', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D4', name: 'Ramya', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D5', name: 'Anjali', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D6', name: 'Rakesh', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D7', name: 'Kiran', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D8', name: 'Sai Raj', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05D9', name: 'Hema', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05E0', name: 'Tharun', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05E1', name: 'Swaroop', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05E2', name: 'Chinmai', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05E3', name: 'Prabhas', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A05E4', name: 'Prasanna', section: 'CSE-3', dept: 'CSE' },
+      { roll: '23811A04A1', name: 'Megha', section: 'ECE-1', dept: 'ECE' },
+      { roll: '23811A04A2', name: 'Ravi', section: 'ECE-1', dept: 'ECE' },
+      { roll: '23811A04A3', name: 'Priya', section: 'ECE-1', dept: 'ECE' },
+      { roll: '23811A03A1', name: 'Anil', section: 'MECH-1', dept: 'MECH' },
+      { roll: '23811A03A2', name: 'Swetha', section: 'MECH-1', dept: 'MECH' },
+      { roll: '23811A02A1', name: 'Karthik', section: 'EEE-1', dept: 'EEE' },
+      { roll: '23811A02A2', name: 'Sindhu', section: 'EEE-1', dept: 'EEE' }
+    ];
+
+    // demo classes/subjects handled by faculty
+    const classes = [
+      { id: 'CD-1001', name: 'CD - Compiler Design (CSE-3)', students: demoStudents.filter(s => s.section === 'CSE-3').map(s => s.roll), section: 'CSE-3', dept: 'CSE' },
+      { id: 'DAA-1002', name: 'DAA - Design & Analysis of Algorithms (CSE-3)', students: demoStudents.filter(s => s.section === 'CSE-3').map(s => s.roll), section: 'CSE-3', dept: 'CSE' },
+      { id: 'STM-1003', name: 'STM - Software Testing & Maintenance (CSE-3)', students: demoStudents.filter(s => s.section === 'CSE-3').map(s => s.roll), section: 'CSE-3', dept: 'CSE' },
+      { id: 'DWDM-1004', name: 'DWDM - Data Warehousing & Data Mining (CSE-3)', students: demoStudents.filter(s => s.section === 'CSE-3').map(s => s.roll), section: 'CSE-3', dept: 'CSE' },
+      { id: 'EC-1001', name: 'Electronic Circuits (ECE-1)', students: demoStudents.filter(s => s.section === 'ECE-1').map(s => s.roll), section: 'ECE-1', dept: 'ECE' },
+      { id: 'ME-1001', name: 'Mechanics of Solids (MECH-1)', students: demoStudents.filter(s => s.section === 'MECH-1').map(s => s.roll), section: 'MECH-1', dept: 'MECH' },
+      { id: 'EE-1001', name: 'Electrical Machines (EEE-1)', students: demoStudents.filter(s => s.section === 'EEE-1').map(s => s.roll), section: 'EEE-1', dept: 'EEE' }
+    ];
+
+    // Attendance storage key
+    const STORAGE_KEY = 'demo_attendance_v1';
+    // Structure in localStorage:
+    // { [classId]: { [dateISO]: { [roll]: true/false, ... }, ... }, ... }
+
+    // helpers
+    function readStorage(){ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    function writeStorage(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
+
+    // Custom alert function
+    const customAlert = document.getElementById('customAlert');
+    function showAlert(message) {
+      customAlert.textContent = message;
+      customAlert.classList.remove('opacity-0', 'pointer-events-none');
+      customAlert.classList.add('opacity-100');
+      setTimeout(() => {
+        customAlert.classList.remove('opacity-100');
+        customAlert.classList.add('opacity-0', 'pointer-events-none');
+      }, 3000);
+    }
+
+    // Helper to get dates in the last 30 days
+    function getDatesInLast30Days() {
+      const dates = new Set();
+      const today = new Date();
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        dates.add(d.toISOString().slice(0, 10));
+      }
+      return Array.from(dates);
+    }
+
+    /*********
+      * Login & session
+      *********/
+    const loginForm = document.getElementById('loginForm');
+    const loginRole = document.getElementById('loginRole');
+    const usernameEl = document.getElementById('username');
+    const passwordEl = document.getElementById('password');
+    const errorTxt = document.getElementById('errorTxt');
+    const loginPage = document.getElementById('loginPage');
+
+    const app = document.getElementById('app');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const currentUser = document.getElementById('currentUser');
+
+    loginForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      errorTxt.classList.add('hidden');
+
+      const role = loginRole.value.trim();
+      const username = usernameEl.value.trim();
+      const password = passwordEl.value.trim();
+
+      if (!role || !username || !password) {
+        errorTxt.textContent = 'Please fill in all fields.';
+        errorTxt.classList.remove('hidden');
+        return;
+      }
+
+      if (password !== '1234') {
+        errorTxt.textContent = 'Invalid credentials. (Demo password is: 1234)';
+        errorTxt.classList.remove('hidden');
+        return;
+      }
+
+      const session = { role, username, roll: (role === 'student' ? username : null) };
+      localStorage.setItem('demo_user', JSON.stringify(session));
+      startApp(session);
+    });
+
+    function logout(){
+      localStorage.removeItem('demo_user');
+      app.classList.add('hidden');
+      loginPage.classList.remove('hidden');
+      logoutBtn.classList.add('hidden');
+      currentUser.classList.add('hidden');
+    }
+    logoutBtn.addEventListener('click', logout);
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const sess = JSON.parse(localStorage.getItem('demo_user') || 'null');
+      if (sess) startApp(sess);
+    });
+
+    /*********
+      * App initialization
+      *********/
+    // UI elements
+    const deptSelect = document.getElementById('deptSelect');
+    const classSelect = document.getElementById('classSelect');
+    const datePicker = document.getElementById('datePicker');
+    const hodDeptControls = document.getElementById('hodDeptControls');
+    const hodDeptSelect = document.getElementById('hodDeptSelect');
+    const loadAttendanceBtn = document.getElementById('loadAttendanceBtn');
+    const saveAttendanceBtn = document.getElementById('saveAttendanceBtn');
+    const attendancePanel = document.getElementById('attendancePanel');
+    const studentsTableBody = document.querySelector('#studentsTable tbody');
+    const panelClassName = document.getElementById('panelClassName');
+    const panelDate = document.getElementById('panelDate');
+    const showAllTimeData = document.getElementById('showAllTimeData');
+
+    const historyPanel = document.getElementById('historyPanel');
+    const dateSummaryTable = document.querySelector('#dateSummaryTable tbody');
+    const studentPctTable = document.querySelector('#studentPctTable tbody');
+    const classAvgEl = document.getElementById('classAvg');
+    const dateSummaryHeader = document.getElementById('dateSummaryHeader');
+    const studentPctHeader = document.getElementById('studentPctHeader');
+
+    const studentPanel = document.getElementById('studentPanel');
+    const stuRoll = document.getElementById('stuRoll');
+    const stuName = document.getElementById('stuName');
+    const stuPct = document.getElementById('stuPct');
+    const stuHistoryTable = document.querySelector('#stuHistoryTable tbody');
+    const studentPanelHeader = document.getElementById('studentPanelHeader');
+    const attendanceChart = document.getElementById('attendanceChart');
+
+    const calendarPanel = document.getElementById('calendarPanel');
+    const calendarDays = document.getElementById('calendarDays');
+    const currentMonthEl = document.getElementById('currentMonth');
+    let currentCalendarDate = new Date(); // Track current month/year for calendar
+
+    const viewCalendarBtn = document.getElementById('viewCalendarBtn');
+    const backToHistoryBtn = document.getElementById('backToHistoryBtn');
+
+    const dayModal = document.getElementById('dayModal');
+    const modalDateEl = document.getElementById('modalDate');
+    const modalDetailsEl = document.getElementById('modalDetails');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+
+    const defaultersPanel = document.getElementById('defaultersPanel');
+    const defTable = document.querySelector('#defTable tbody');
+    const defThreshold = document.getElementById('defThreshold');
+    const refreshDefBtn = document.getElementById('refreshDefBtn');
+    const exportCSVBtn = document.getElementById('exportCSVBtn');
+    const defaultersPanelHeader = document.getElementById('defaultersPanelHeader');
+    
+    const hodPanel = document.getElementById('hodPanel');
+    const hodTable = document.getElementById('hodTable');
+    const hodStudentTable = document.getElementById('hodStudentTable');
+    
+    const principalPanel = document.getElementById('principalPanel');
+    const principalTable = document.getElementById('principalTable');
+
+    const facultyActions = document.getElementById('facultyActions');
+    const othersActions = document.getElementById('othersActions');
+
+    const markAllPresentBtn = document.getElementById('markAllPresentBtn');
+    const markAllAbsentBtn = document.getElementById('markAllAbsentBtn');
+
+    function populateDeptSelect(){
+      const departments = [...new Set(classes.map(c => c.dept))];
+      deptSelect.innerHTML = departments.map(d => <option value="${d}">${d}</option>).join('');
+    }
+
+    function populateClassSelect(department){
+      classSelect.innerHTML = '';
+      const filteredClasses = classes.filter(c => c.dept === department);
+      if (filteredClasses.length === 0) {
+        const opt = document.createElement('option');
+        opt.textContent = "No subjects found for this department";
+        opt.disabled = true;
+        classSelect.appendChild(opt);
+      } else {
+        filteredClasses.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.name;
+          classSelect.appendChild(opt);
+        });
+      }
+    }
+
+    function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+    function startApp(session){
+      loginPage.classList.add('hidden');
+      app.classList.remove('hidden');
+      logoutBtn.classList.remove('hidden');
+      currentUser.classList.remove('hidden');
+      currentUser.textContent = ${session.username} (${session.role});
+      
+      populateDeptSelect();
+      populateClassSelect(deptSelect.value);
+      datePicker.value = todayISO();
+
+      if (session.role === 'faculty') {
+        facultyActions.classList.remove('hidden');
+        othersActions.classList.add('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.remove('hidden');
+        classSelect.classList.remove('hidden');
+        datePicker.classList.remove('hidden');
+      } else if (session.role === 'student') {
+        facultyActions.classList.add('hidden');
+        othersActions.classList.add('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.add('hidden');
+        classSelect.classList.add('hidden');
+        datePicker.classList.add('hidden');
+      } else if (session.role === 'hod'){
+        facultyActions.classList.add('hidden');
+        othersActions.classList.add('hidden');
+        hodDeptControls.classList.remove('hidden');
+        deptSelect.classList.add('hidden');
+        classSelect.classList.add('hidden');
+        datePicker.classList.add('hidden');
+      } else if (session.role === 'principal'){
+        facultyActions.classList.add('hidden');
+        othersActions.classList.add('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.add('hidden');
+        classSelect.classList.add('hidden');
+        datePicker.classList.add('hidden');
+      } else {
+        facultyActions.classList.add('hidden');
+        othersActions.classList.remove('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.remove('hidden');
+        classSelect.classList.remove('hidden');
+        datePicker.classList.remove('hidden');
+      }
+
+      deptSelect.onchange = () => populateClassSelect(deptSelect.value);
+      loadAttendanceBtn.onclick = () => loadAttendanceForSelected();
+      saveAttendanceBtn.onclick = () => saveAttendanceForSelected();
+      document.getElementById('viewConsolidatedBtn').onclick = () => showConsolidated();
+      document.getElementById('generateDefaultersBtn').onclick = () => showDefaulters();
+      refreshDefBtn.onclick = () => showDefaulters();
+      exportCSVBtn.onclick = () => exportDefaultersCSV();
+      showAllTimeData.onchange = () => refreshUIForRole(session);
+      hodDeptSelect.onchange = () => renderStudentsForDept(hodDeptSelect.value);
+      markAllPresentBtn.onclick = () => {
+        document.querySelectorAll('#studentsTable tbody .presentChk').forEach(chk => chk.checked = true);
+      };
+      markAllAbsentBtn.onclick = () => {
+        document.querySelectorAll('#studentsTable tbody .presentChk').forEach(chk => chk.checked = false);
+      };
+
+      viewCalendarBtn.onclick = () => {
+        studentPanel.classList.add('hidden');
+        calendarPanel.classList.remove('hidden');
+        generateAttendanceCalendar(session.username);
+      };
+      backToHistoryBtn.onclick = () => {
+        studentPanel.classList.remove('hidden');
+        calendarPanel.classList.add('hidden');
+      };
+      document.getElementById('prevMonthBtn').onclick = () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        generateAttendanceCalendar(session.username);
+      };
+      document.getElementById('nextMonthBtn').onclick = () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        generateAttendanceCalendar(session.username);
+      };
+      closeModalBtn.onclick = () => dayModal.classList.add('hidden');
+      
+      refreshUIForRole(session);
+    }
+
+    function loadAttendanceForSelected(){
+      const cid = classSelect.value;
+      const date = datePicker.value;
+      if (!cid || !date) return showAlert('Choose a valid class and date.');
+      const storage = readStorage();
+      const classData = storage[cid] || {};
+      const dayRec = classData[date] || {};
+
+      attendancePanel.classList.remove('hidden');
+      historyPanel.classList.remove('hidden');
+      defaultersPanel.classList.add('hidden');
+      studentPanel.classList.add('hidden');
+      calendarPanel.classList.add('hidden');
+
+      const cls = classes.find(c => c.id === cid);
+      if (!cls) {
+          showAlert('Class data not found.');
+          return;
+      }
+      panelClassName.textContent = cls.name;
+      panelDate.textContent = date;
+
+      studentsTableBody.innerHTML = '';
+      cls.students.forEach(roll => {
+        const student = demoStudents.find(s => s.roll === roll) || {roll, name: '—'};
+        const present = (dayRec[roll] === undefined) ? true : !!dayRec[roll];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="border px-3 py-2">${student.roll}</td>
+          <td class="border px-3 py-2">${student.name}</td>
+          <td class="border px-3 py-2 text-center">
+            <input data-roll="${student.roll}" class="presentChk" type="checkbox" ${present ? 'checked' : ''}>
+          </td>
+        `;
+        studentsTableBody.appendChild(tr);
+      });
+      renderHistoryForClass(cid);
+    }
+
+    function saveAttendanceForSelected(){
+      const cid = classSelect.value;
+      const date = datePicker.value;
+      if (!cid || !date) return showAlert('Choose a valid class and date.');
+
+      const checkboxes = [...document.querySelectorAll('#studentsTable tbody .presentChk')];
+      const dayRec = {};
+      checkboxes.forEach(chk => {
+        const r = chk.dataset.roll;
+        dayRec[r] = chk.checked;
+      });
+
+      const storage = readStorage();
+      storage[cid] = storage[cid] || {};
+      storage[cid][date] = dayRec;
+      writeStorage(storage);
+
+      showAlert('Attendance saved for ' + date + ' (' + cid + ')');
+      renderHistoryForClass(cid);
+    }
+
+    function renderHistoryForClass(cid){
+      const storage = readStorage();
+      const classData = storage[cid] || {};
+      
+      const isAllTime = showAllTimeData.checked;
+      const allDates = Object.keys(classData);
+      const dates = isAllTime ? allDates : getDatesInLast30Days().filter(d => allDates.includes(d));
+      const sortedDates = dates.sort((a,b)=> b.localeCompare(a));
+
+      dateSummaryHeader.textContent = Per-Date Summary (${isAllTime ? 'All Time' : 'Last 30 Days'});
+      studentPctHeader.textContent = Per-Student Percentage (${isAllTime ? 'All Time' : 'Last 30 Days'});
+      
+      dateSummaryTable.innerHTML = '';
+      const cls = classes.find(c => c.id === cid);
+      
+      if (!cls) {
+        dateSummaryTable.innerHTML = <tr><td colspan="4" class="px-3 py-1">No data available for this class.</td></tr>;
+        studentPctTable.innerHTML = '';
+        classAvgEl.textContent = '-';
+        return;
+      }
+      
+      sortedDates.forEach(d => {
+        const rec = classData[d];
+        const presentCount = Object.values(rec).filter(v => v).length;
+        const pct = cls.students.length === 0 ? 0 : (presentCount / cls.students.length * 100).toFixed(1);
+        const tr = document.createElement('tr');
+        tr.innerHTML = <td class="border px-3 py-1">${d}</td><td class="border px-3 py-1">${presentCount}</td><td class="border px-3 py-1">${cls.students.length}</td><td class="border px-3 py-1">${pct}%</td>;
+        dateSummaryTable.appendChild(tr);
+      });
+
+      const perStudent = {};
+      cls.students.forEach(r => perStudent[r] = {present:0, total:0});
+      dates.forEach(d => {
+        const rec = classData[d];
+        cls.students.forEach(r => {
+          if (rec[r] !== undefined) {
+            perStudent[r].total += 1;
+            if (rec[r]) perStudent[r].present += 1;
+          }
+        });
+      });
+      
+      studentPctTable.innerHTML = '';
+      let classAvgSum = 0;
+      let studentsWithData = 0;
+      cls.students.forEach(r => {
+        const s = demoStudents.find(ss => ss.roll === r) || {name:'—'};
+        const p = perStudent[r].present;
+        const t = perStudent[r].total;
+        const pct = t === 0 ? '-' : ((p/t)*100).toFixed(1) + '%';
+        if (t > 0) {
+          classAvgSum += (p/t);
+          studentsWithData++;
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = <td class="border px-3 py-1">${r}</td><td class="border px-3 py-1">${s.name}</td><td class="border px-3 py-1">${p}</td><td class="border px-3 py-1">${t}</td><td class="border px-3 py-1">${pct}</td>;
+        studentPctTable.appendChild(tr);
+      });
+      const avgPct = (studentsWithData === 0) ? '-' : ((classAvgSum / studentsWithData) * 100).toFixed(1) + '%';
+      classAvgEl.textContent = avgPct;
+    }
+
+    let myChart = null;
+
+    function showStudentView(session){
+      const roll = session.username;
+      const student = demoStudents.find(s => s.roll === roll);
+      if (!student) {
+        stuRoll.textContent = roll;
+        stuName.textContent = 'Unknown student (demo)';
+      } else {
+        stuRoll.textContent = student.roll;
+        stuName.textContent = student.name;
+      }
+
+      const storage = readStorage();
+      const allRecords = [];
+      Object.keys(storage).forEach(cid => {
+        const classData = storage[cid];
+        Object.keys(classData).forEach(date => {
+          const rec = classData[date];
+          if (rec[roll] !== undefined) {
+            allRecords.push({date, cid, present: !!rec[roll]});
+          }
+        });
+      });
+
+      const isAllTime = showAllTimeData.checked;
+      const datesToFilter = isAllTime ? Object.keys(readStorage()).flatMap(cid => Object.keys(readStorage()[cid])) : getDatesInLast30Days();
+      const records = allRecords.filter(r => datesToFilter.includes(r.date));
+      
+      let presentCount = 0, totalCount = 0;
+      records.forEach(r => {
+        totalCount += 1;
+        if (r.present) presentCount += 1;
+      });
+
+      studentPanelHeader.textContent = Your Attendance (${isAllTime ? 'All Time' : 'Last 30 Days'});
+      stuHistoryTable.innerHTML = '';
+      records.sort((a,b)=> b.date.localeCompare(a.date)).forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = <td class="border px-3 py-1">${r.date} (${classes.find(c => c.id === r.cid).name})</td><td class="border px-3 py-1">${r.present ? 'Present' : 'Absent'}</td>;
+        stuHistoryTable.appendChild(tr);
+      });
+
+      stuPct.textContent = (totalCount===0) ? '-' : ((presentCount/totalCount)*100).toFixed(1) + '%';
+
+      const dailyAttendance = {};
+      records.forEach(r => {
+        if (!dailyAttendance[r.date]) {
+          dailyAttendance[r.date] = { present: 0, total: 0 };
+        }
+        dailyAttendance[r.date].total += 1;
+        if (r.present) {
+          dailyAttendance[r.date].present += 1;
+        }
+      });
+
+      const datesForChart = Object.keys(dailyAttendance).sort();
+      const attendancePercentages = datesForChart.map(d => {
+        const day = dailyAttendance[d];
+        return (day.present / day.total) * 100;
+      });
+
+      const backgroundColors = attendancePercentages.map(pct => {
+        return pct >= 75 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(239, 68, 68, 0.8)';
+      });
+
+      if (myChart) {
+        myChart.destroy();
+      }
+
+      myChart = new Chart(attendanceChart, {
+        type: 'bar',
+        data: {
+          labels: datesForChart,
+          datasets: [{
+            label: 'Daily Attendance %',
+            data: attendancePercentages,
+            backgroundColor: backgroundColors,
+            borderColor: backgroundColors.map(color => color.replace('0.8', '1')),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Percentage (%)'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.dataset.label || '';
+                  const value = context.parsed.y;
+                  return ${label}: ${value.toFixed(1)}%;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function generateAttendanceCalendar(roll) {
+      const year = currentCalendarDate.getFullYear();
+      const month = currentCalendarDate.getMonth();
+      currentMonthEl.textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+      
+      calendarDays.innerHTML = '';
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const studentRecords = {};
+      const storage = readStorage();
+      Object.keys(storage).forEach(cid => {
+        const classData = storage[cid];
+        Object.keys(classData).forEach(date => {
+          const rec = classData[date];
+          if (rec[roll] !== undefined) {
+            if (!studentRecords[date]) {
+              studentRecords[date] = [];
+            }
+            studentRecords[date].push({
+              cid: cid,
+              present: !!rec[roll]
+            });
+          }
+        });
+      });
+
+      for (let i = 0; i < firstDay; i++) {
+        const emptyDay = document.createElement('div');
+        emptyDay.className = 'calendar-day';
+        calendarDays.appendChild(emptyDay);
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateISO = ${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')};
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'calendar-day relative';
+        dayDiv.innerHTML = <div class="calendar-day-inner"><span class="calendar-day-date">${day}</span></div>;
+
+        const recordsForDay = studentRecords[dateISO];
+        if (recordsForDay) {
+          const presentCount = recordsForDay.filter(r => r.present).length;
+          const totalCount = recordsForDay.length;
+          let dotColor = '';
+          if (presentCount === totalCount) {
+            dotColor = 'bg-green-500-dot';
+          } else if (presentCount > 0) {
+            dotColor = 'bg-yellow-500-dot';
+          } else {
+            dotColor = 'bg-red-500-dot';
+          }
+          const dot = document.createElement('div');
+          dot.className = status-dot ${dotColor};
+          dayDiv.querySelector('.calendar-day-inner').appendChild(dot);
+          dayDiv.classList.add('has-data');
+          dayDiv.onclick = () => showDayDetails(dateISO, recordsForDay);
+        } else {
+          dayDiv.classList.add('text-gray-400');
+        }
+        
+        calendarDays.appendChild(dayDiv);
+      }
+    }
+
+    function showDayDetails(date, records) {
+      modalDateEl.textContent = Attendance for ${date};
+      modalDetailsEl.innerHTML = '';
+      if (records.length === 0) {
+        modalDetailsEl.innerHTML = <p class="text-gray-600">No classes recorded on this date.</p>;
+      } else {
+        records.forEach(rec => {
+          const className = classes.find(c => c.id === rec.cid)?.name || 'Unknown Class';
+          const status = rec.present ? 'Present' : 'Absent';
+          const statusColor = rec.present ? 'text-green-600' : 'text-red-600';
+          const p = document.createElement('p');
+          p.innerHTML = <span class="font-semibold">${className}:</span> <span class="${statusColor}">${status}</span>;
+          modalDetailsEl.appendChild(p);
+        });
+      }
+      dayModal.classList.remove('hidden');
+    }
+
+    function showConsolidated(){
+      historyPanel.classList.remove('hidden');
+      attendancePanel.classList.add('hidden');
+      defaultersPanel.classList.add('hidden');
+      studentPanel.classList.add('hidden');
+      calendarPanel.classList.add('hidden');
+      const cid = classSelect.value;
+      if (!cid) return showAlert('Please select a class.');
+      renderHistoryForClass(cid);
+    }
+
+    function showDefaulters(){
+      defaultersPanel.classList.remove('hidden');
+      historyPanel.classList.add('hidden');
+      attendancePanel.classList.add('hidden');
+      studentPanel.classList.add('hidden');
+      calendarPanel.classList.add('hidden');
+      const threshold = Number(defThreshold.value) || 75;
+      const cid = classSelect.value;
+      if (!cid) return showAlert('Please select a class.');
+      const storage = readStorage();
+      const classData = storage[cid] || {};
+      
+      const isAllTime = showAllTimeData.checked;
+      const allDates = Object.keys(classData);
+      const dates = isAllTime ? allDates : getDatesInLast30Days().filter(d => allDates.includes(d));
+      
+      defaultersPanelHeader.textContent = Defaulters (Below ${threshold}%, ${isAllTime ? 'all time' : 'last 30 days'});
+      
+      const cls = classes.find(c => c.id === cid);
+      const perStudent = {};
+      cls.students.forEach(r => perStudent[r] = {present:0, total:0});
+      dates.forEach(d => {
+        const rec = classData[d];
+        cls.students.forEach(r => {
+          if (rec[r] !== undefined) {
+            perStudent[r].total += 1;
+            if (rec[r]) perStudent[r].present += 1;
+          }
+        });
+      });
+      defTable.innerHTML = '';
+      cls.students.forEach(r => {
+        const s = demoStudents.find(ss => ss.roll === r) || {name:'—'};
+        const p = perStudent[r].present, t = perStudent[r].total;
+        const pct = (t === 0) ? 100 : (p / t) * 100;
+        if (t === 0) return;
+        if (pct < threshold) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = <td class="border px-3 py-1">${r}</td><td class="border px-3 py-1">${s.name}</td><td class="border px-3 py-1">${pct.toFixed(1)}%</td>;
+          defTable.appendChild(tr);
+        }
+      });
+    }
+
+    function exportDefaultersCSV(){
+      const rows = [['Roll','Name','Percentage']];
+      [...defTable.querySelectorAll('tbody tr')].forEach(tr => {
+        const cols = tr.querySelectorAll('td');
+        rows.push([cols[0].textContent.trim(), cols[1].textContent.trim(), cols[2].textContent.trim()]);
+      });
+      if (rows.length === 1) return showAlert('No defaulters to export.');
+      const csv = rows.map(r => "${r[0]}","${r[1]}","${r[2]}").join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'defaulters.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+    
+    function showHodView(){
+      hodPanel.classList.remove('hidden');
+      attendancePanel.classList.add('hidden');
+      historyPanel.classList.add('hidden');
+      defaultersPanel.classList.add('hidden');
+      studentPanel.classList.add('hidden');
+      calendarPanel.classList.add('hidden');
+      
+      const storage = readStorage();
+      const perSubject = {};
+      
+      classes.forEach(cls => {
+        let presentCount = 0;
+        let totalCount = 0;
+        const classData = storage[cls.id] || {};
+        
+        Object.keys(classData).forEach(date => {
+          const rec = classData[date];
+          totalCount += cls.students.length;
+          presentCount += Object.values(rec).filter(v => v).length;
+        });
+        
+        perSubject[cls.name] = { present: presentCount, total: totalCount };
+      });
+      
+      hodTable.querySelector('tbody').innerHTML = '';
+      Object.keys(perSubject).forEach(subject => {
+        const { present, total } = perSubject[subject];
+        const pct = total === 0 ? '-' : ((present / total) * 100).toFixed(1) + '%';
+        const tr = document.createElement('tr');
+        tr.innerHTML = <td class="border px-3 py-1">${subject}</td><td class="border px-3 py-1">${pct}</td>;
+        hodTable.querySelector('tbody').appendChild(tr);
+      });
+      
+      const departments = [...new Set(demoStudents.map(s => s.dept))];
+      hodDeptSelect.innerHTML = departments.map(d => <option value="${d}">${d}</option>).join('');
+      renderStudentsForDept(hodDeptSelect.value);
+    }
+    
+    function renderStudentsForDept(dept) {
+        const storage = readStorage();
+        const deptStudents = demoStudents.filter(s => s.dept === dept);
+        const perStudent = {};
+        
+        deptStudents.forEach(s => perStudent[s.roll] = { present: 0, total: 0 });
+        
+        const deptClasses = classes.filter(c => c.dept === dept);
+        
+        deptClasses.forEach(cls => {
+            const classData = storage[cls.id] || {};
+            Object.keys(classData).forEach(date => {
+                const rec = classData[date];
+                Object.keys(rec).forEach(roll => {
+                    if (perStudent[roll]) {
+                        perStudent[roll].total += 1;
+                        if (rec[roll]) perStudent[roll].present += 1;
+                    }
+                });
+            });
+        });
+        
+        hodStudentTable.querySelector('tbody').innerHTML = '';
+        deptStudents.forEach(s => {
+            const data = perStudent[s.roll];
+            const pct = data.total === 0 ? '-' : ((data.present / data.total) * 100).toFixed(1) + '%';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="border px-3 py-1">${s.roll}</td>
+                <td class="border px-3 py-1">${s.name}</td>
+                <td class="border px-3 py-1">${data.present}</td>
+                <td class="border px-3 py-1">${data.total}</td>
+                <td class="border px-3 py-1">${pct}</td>
+            `;
+            hodStudentTable.querySelector('tbody').appendChild(tr);
+        });
+    }
+
+    function showPrincipalView(){
+      principalPanel.classList.remove('hidden');
+      attendancePanel.classList.add('hidden');
+      historyPanel.classList.add('hidden');
+      defaultersPanel.classList.add('hidden');
+      studentPanel.classList.add('hidden');
+      calendarPanel.classList.add('hidden');
+      
+      const storage = readStorage();
+      const perSection = {};
+      
+      const sections = [...new Set(demoStudents.map(s => s.section))];
+      sections.forEach(section => {
+        perSection[section] = { present: 0, total: 0 };
+      });
+      
+      Object.keys(storage).forEach(cid => {
+        const cls = classes.find(c => c.id === cid);
+        if (!cls) return;
+        
+        const classData = storage[cid];
+        Object.keys(classData).forEach(date => {
+          const rec = classData[date];
+          const section = cls.section;
+          
+          if (perSection[section]) {
+            perSection[section].total += cls.students.length;
+            perSection[section].present += Object.values(rec).filter(v => v).length;
+          }
+        });
+      });
+      
+      principalTable.querySelector('tbody').innerHTML = '';
+      Object.keys(perSection).forEach(section => {
+        const { present, total } = perSection[section];
+        const pct = total === 0 ? '-' : ((present / total) * 100).toFixed(1) + '%';
+        const tr = document.createElement('tr');
+        tr.innerHTML = <td class="border px-3 py-1">${section}</td><td class="border px-3 py-1">${pct}</td>;
+        principalTable.querySelector('tbody').appendChild(tr);
+      });
+    }
+
+    function refreshUIForRole(session){
+      attendancePanel.classList.add('hidden');
+      historyPanel.classList.add('hidden');
+      studentPanel.classList.add('hidden');
+      calendarPanel.classList.add('hidden');
+      defaultersPanel.classList.add('hidden');
+      hodPanel.classList.add('hidden');
+      principalPanel.classList.add('hidden');
+      
+      classSelect.classList.remove('hidden');
+      datePicker.classList.remove('hidden');
+
+      if (session.role === 'student') {
+        studentPanel.classList.remove('hidden');
+        classSelect.classList.add('hidden');
+        datePicker.classList.add('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.add('hidden');
+        showStudentView(session);
+      } else if (session.role === 'faculty') {
+        attendancePanel.classList.remove('hidden');
+        historyPanel.classList.remove('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.remove('hidden');
+        loadAttendanceForSelected();
+      } else if (session.role === 'hod'){
+        classSelect.classList.add('hidden');
+        datePicker.classList.add('hidden');
+        hodDeptControls.classList.remove('hidden');
+        deptSelect.classList.add('hidden');
+        showHodView();
+      } else if (session.role === 'principal'){
+        classSelect.classList.add('hidden');
+        datePicker.classList.add('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.add('hidden');
+        showPrincipalView();
+      } else {
+        historyPanel.classList.remove('hidden');
+        defaultersPanel.classList.remove('hidden');
+        hodDeptControls.classList.add('hidden');
+        deptSelect.classList.remove('hidden');
+        showConsolidated();
+      }
+    }
+  </script>
+</body>
+</html>
